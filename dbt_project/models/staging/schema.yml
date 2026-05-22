@@ -1,0 +1,116 @@
+version: 2
+
+models:
+  - name: stg_tree_census
+    description: >
+      Cleaned and filtered view of the NYC 2015 Street Tree Census.
+      Filters to living trees (status = 'alive') and casts all source types
+      to their canonical forms. loaded_at is the real ingestion timestamp
+      written by process_and_load.py — not a surrogate.
+    columns:
+      - name: tree_id
+        description: Unique integer identifier for each tree.
+        tests:
+          - not_null
+          - unique
+
+      - name: latitude
+        description: WGS-84 latitude (degrees north).
+        tests:
+          - not_null
+
+      - name: longitude
+        description: WGS-84 longitude (degrees east).
+        tests:
+          - not_null
+
+      - name: health
+        description: Tree health rating normalised to lowercase. Null or blank source values are mapped to 'unknown'.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["good", "fair", "poor", "unknown"]
+
+      - name: status
+        description: Tree lifecycle status normalised to lowercase.
+        tests:
+          - accepted_values:
+              arguments:
+                values: ["alive", "dead", "stump"]
+
+      - name: ndvi_value
+        description: Sampled NDVI value in [-1, 1]. Null if tree fell outside the raster.
+        tests:
+          - not_null
+          - value_between:
+              arguments:
+                min_value: -1
+                max_value: 1
+
+      - name: census_tract_id
+        description: Census tract assigned by spatial join; 'UNKNOWN' if unmatched.
+        tests:
+          - not_null
+
+      - name: boroname
+        description: NYC borough name derived from the borough column in the source CSV.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["Queens", "Brooklyn", "Manhattan", "Bronx", "Staten Island", "UNKNOWN"]
+
+      - name: block_id
+        description: City block identifier for the tree's street segment.
+        tests:
+          - not_null
+
+      - name: x_32618
+        description: UTM Zone 18N easting in metres (EPSG:32618). Valid range for NYC is roughly 556 000–663 000 m.
+        tests:
+          - not_null
+          - value_between:
+              arguments:
+                min_value: 500000
+                max_value: 700000
+
+      - name: y_32618
+        description: UTM Zone 18N northing in metres (EPSG:32618). Valid range for NYC is roughly 4 488 000–4 637 000 m.
+        tests:
+          - not_null
+          - value_between:
+              arguments:
+                min_value: 4400000
+                max_value: 4700000
+
+      - name: spc_common
+        description: Common species name, lowercased.
+
+      - name: surveyed_at
+        description: Date the tree record was created in the NYC survey system (cast from created_at).
+        tests:
+          - not_null
+
+      - name: loaded_at
+        description: UTC timestamp written by process_and_load.py at ingestion time. Used for dbt source freshness checks.
+        tests:
+          - not_null
+
+      - name: address
+        description: Street address of the tree.
+
+      - name: postcode
+        description: ZIP code of the tree location.
+
+      - name: spc_latin
+        description: Latin (scientific) species name, lowercased.
+
+      - name: tree_dbh
+        description: Diameter at breast height in inches — proxy for canopy size. Zero is valid for newly planted trees recorded before first measurement.
+        tests:
+          - not_null
+          - value_between:
+              arguments:
+                min_value: 0
+                max_value: 450

@@ -1,0 +1,108 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  pipeline:
+    runs-on: ubuntu-latest
+
+    services:
+      postgis:
+        image: postgis/postgis:15-3.4
+        env:
+          POSTGRES_DB: treecanopy
+          POSTGRES_USER: danish
+          POSTGRES_PASSWORD: danish123
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U danish -d treecanopy"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      POSTGIS_HOST: localhost
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Generate synthetic NDVI raster
+        run: python ingestion/fetch_ndvi.py
+
+      - name: Generate synthetic tree census CSV for CI
+        # Avoids downloading the 220 MB NYC Open Data file on every CI run.
+        # Produces 2 000 rows covering all five boroughs — enough to exercise
+        # every dbt model, test, and spatial integrity check.
+        run: |
+          python - <<'EOF'
+          import pathlib
+          import numpy as np
+          import pandas as pd
+
+          rng = np.random.default_rng(42)
+          n = 2000
+
+          boroughs = ["Queens", "Brooklyn", "Manhattan", "Bronx", "Staten Island"]
+          species_common = ["london planetree", "honeylocust", "pin oak",
+                            "norway maple", "callery pear"]
+          species_latin  = ["Platanus x acerifolia", "Gleditsia triacanthos",
+                            "Quercus palustris", "Acer platanoides",
+                            "Pyrus calleryana"]
+
+          df = pd.DataFrame({
+              "tree_id":      range(1, n + 1),
+              "block_id":     rng.integers(1, 500, n),
+              "created_at":   "2015-09-01",
+              "status":       "Alive",
+              "health":       rng.choice(["Good", "Fair", "Poor"], n),
+              "spc_common":   rng.choice(species_common, n),
+              "spc_latin":    rng.choice(species_latin,  n),
+              "tree_dbh":     rng.integers(1, 30, n),
+              "latitude":     rng.uniform(40.49, 40.92, n),
+              "longitude":    rng.uniform(-74.26, -73.70, n),
+              "address":      "123 Main St",
+              "postcode":     rng.integers(10001, 11999, n),
+              "borough":      rng.choice(boroughs, n),
+              "borocode":     rng.integers(1, 6, n),
+              "nta":          "NTA01",
+              "nta_name":     "Test NTA",
+              "census_tract": 1.0,
+          })
+
+          out = pathlib.Path("data/raw/nyc_tree_census_2015.csv")
+          out.parent.mkdir(parents=True, exist_ok=True)
+          df.to_csv(out, index=False)
+          print(f"Generated {n} synthetic trees -> {out}")
+          EOF
+
+      - name: Process and load into PostGIS
+        run: python ingestion/process_and_load.py
+
+      - name: dbt run
+        working-directory: dbt_project
+        run: dbt run --profiles-dir .
+
+      # Gate: fail the build if any dbt test fails
+      - name: dbt test
+        working-directory: dbt_project
+        run: dbt test --profiles-dir .
+
+      - name: DuckDB analytics
+        run: python queries/duckdb_analysis.py
+
+      - name: pytest spatial integrity
+        run: pytest tests/ -v

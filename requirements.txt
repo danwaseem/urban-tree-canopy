@@ -1,0 +1,16 @@
+pandas
+geopandas
+shapely
+rasterio
+numpy
+pyarrow
+duckdb
+boto3
+requests
+sqlalchemy
+psycopg2-binary
+geoalchemy2
+dbt-core
+dbt-postgres
+# apache-airflow runs inside Docker (see docker-compose.yml) — not installed locally
+pytest

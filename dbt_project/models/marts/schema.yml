@@ -1,0 +1,85 @@
+version: 2
+
+models:
+  - name: mart_canopy_coverage
+    description: >
+      Census-tract and borough level tree canopy summary.
+      One row per (census_tract_id, boroname) pair.
+    columns:
+      - name: census_tract_id
+        description: Census tract identifier (synthetic grid for demo).
+        tests:
+          - not_null
+
+      - name: boroname
+        description: NYC borough name.
+        tests:
+          - accepted_values:
+              arguments:
+                values: ["Queens", "Brooklyn", "Manhattan", "Bronx", "Staten Island", "UNKNOWN"]
+
+      - name: tree_count
+        description: Number of living trees in this tract.
+        tests:
+          - not_null
+          - positive_value
+
+      - name: avg_ndvi
+        description: Mean NDVI across all trees in this tract.
+        tests:
+          - not_null
+          - value_between:
+              arguments:
+                min_value: -1
+                max_value: 1
+
+      - name: avg_tree_dbh
+        description: Mean diameter at breast height (inches) across trees in this tract.
+        tests:
+          - not_null
+
+      - name: species_count
+        description: Count of distinct species in this tract.
+        tests:
+          - positive_value
+
+      - name: canopy_density_score
+        description: Demo proxy density score (tree_count / 1000).
+        tests:
+          - not_null
+
+  - name: mart_species_health
+    description: >
+      Species-level health and NDVI aggregation.
+      One row per (spc_common, health) pair.
+    columns:
+      - name: spc_common
+        description: Common species name (lowercased).
+        tests:
+          - not_null
+
+      - name: health
+        description: Tree health rating.
+
+      - name: tree_count
+        description: Number of trees of this species and health rating.
+        tests:
+          - not_null
+          - positive_value
+
+      - name: spc_latin
+        description: Latin (scientific) species name (max per spc_common group).
+
+      - name: avg_ndvi
+        description: Mean NDVI for this species/health combination.
+        tests:
+          - not_null
+          - value_between:
+              arguments:
+                min_value: -1
+                max_value: 1
+
+      - name: avg_tree_dbh
+        description: Mean diameter at breast height (inches) for this species/health combination.
+        tests:
+          - not_null

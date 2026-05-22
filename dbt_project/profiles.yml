@@ -1,0 +1,12 @@
+tree_canopy:
+  target: dev
+  outputs:
+    dev:
+      type: postgres
+      host: "{{ env_var('POSTGIS_HOST', 'localhost') }}"
+      port: 5432
+      dbname: treecanopy
+      user: danish
+      password: danish123
+      schema: analytics
+      threads: 4

@@ -1,0 +1,60 @@
+version: 2
+
+sources:
+  - name: raw
+    schema: raw
+    description: >
+      Raw tables loaded by the Python ingestion pipeline (process_and_load.py).
+    tables:
+      - name: tree_census
+        description: >
+          NYC 2015 Street Tree Census loaded into PostGIS. Each row is one
+          street tree with point geometry (EPSG:32618), NDVI sample, and
+          census tract assignment.
+
+        # loaded_at is written by process_and_load.py at ingestion time.
+        freshness:
+          warn_after: {count: 24, period: hour}
+          error_after: {count: 48, period: hour}
+        loaded_at_field: loaded_at
+
+        columns:
+          - name: tree_id
+            description: Unique identifier for each tree (source integer).
+            tests:
+              - not_null
+              - unique
+          - name: block_id
+            description: Identifier for the city block on which the tree stands.
+          - name: created_at
+            description: Date the tree record was created in the NYC survey system (2015).
+          - name: loaded_at
+            description: UTC timestamp written by process_and_load.py at ingestion time.
+          - name: tree_dbh
+            description: Diameter at breast height in inches — proxy for canopy size.
+          - name: latitude
+            description: WGS-84 latitude of the tree (degrees).
+          - name: longitude
+            description: WGS-84 longitude of the tree (degrees).
+          - name: address
+            description: Street address of the tree.
+          - name: postcode
+            description: ZIP code.
+          - name: status
+            description: Tree status — Alive, Dead, or Stump.
+          - name: health
+            description: Tree health rating — Good, Fair, or Poor.
+          - name: spc_common
+            description: Common species name.
+          - name: spc_latin
+            description: Latin (scientific) species name.
+          - name: boroname
+            description: NYC borough name derived from the borough column.
+          - name: census_tract_id
+            description: Census tract assigned by spatial join in the pipeline.
+          - name: ndvi_value
+            description: Synthetic NDVI value sampled from the raster (float32).
+          - name: x_32618
+            description: Easting in metres (UTM Zone 18N, EPSG:32618).
+          - name: y_32618
+            description: Northing in metres (UTM Zone 18N, EPSG:32618).

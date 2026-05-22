@@ -1,0 +1,64 @@
+version: "3.8"
+
+services:
+  postgis:
+    image: postgis/postgis:15-3.4
+    container_name: treecanopy-postgis
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: treecanopy
+      POSTGRES_USER: danish
+      POSTGRES_PASSWORD: danish123
+    volumes:
+      - postgis_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U danish -d treecanopy"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  airflow:
+    image: apache/airflow:2.9.1
+    container_name: treecanopy-airflow
+    # Install all pipeline deps BEFORE starting standalone so gunicorn workers
+    # can import them without timing out. Also clears any stale PID file from
+    # a previous crash before bringing up the webserver.
+    command:
+      - bash
+      - -c
+      - |
+        pip install --quiet \
+          geopandas shapely rasterio numpy pyarrow duckdb \
+          boto3 sqlalchemy psycopg2-binary geoalchemy2 \
+          dbt-core dbt-postgres requests \
+        && rm -f /opt/airflow/airflow-webserver.pid \
+        && airflow standalone
+    ports:
+      - "8080:8080"
+    environment:
+      AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+      AIRFLOW__CORE__EXECUTOR: SequentialExecutor
+      # Give gunicorn workers extra time — heavy imports (geopandas/rasterio) are slow
+      AIRFLOW__WEBSERVER__WEB_SERVER_WORKER_TIMEOUT: "300"
+      AIRFLOW__WEBSERVER__WORKERS: "1"
+      # Docker service name for PostGIS — used by dbt profiles.yml and process_and_load.py
+      POSTGIS_HOST: postgis
+      # Full URL for SQLAlchemy (process_and_load.py + export_parquet task)
+      TREECANOPY_DB_URL: "postgresql+psycopg2://danish:danish123@postgis:5432/treecanopy"
+    volumes:
+      - ./airflow_dags:/opt/airflow/dags
+      - ./ingestion:/opt/airflow/ingestion
+      - ./dbt_project:/opt/airflow/dbt_project
+      - ./data:/opt/airflow/data
+      # Cache pip packages across restarts so install is fast after the first run
+      - airflow_pip_cache:/home/airflow/.local
+    depends_on:
+      postgis:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgis_data:
+  airflow_pip_cache:

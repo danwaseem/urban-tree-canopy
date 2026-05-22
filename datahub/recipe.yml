@@ -1,0 +1,33 @@
+# DataHub ingestion recipe — PostgreSQL / PostGIS source
+#
+# Crawls the raw and analytics schemas in PostGIS and emits dataset metadata,
+# schema field descriptions, and ownership to a DataHub GMS instance.
+#
+# Run (requires datahub-ingestion pip package):
+#   datahub ingest -c datahub/recipe.yml
+#
+# Set DATAHUB_GMS_URL and POSTGRES_PASSWORD as environment variables before running.
+
+source:
+  type: postgres
+  config:
+    host_port: "${POSTGIS_HOST:-localhost}:5432"
+    database: treecanopy
+    username: danish
+    password: "${POSTGRES_PASSWORD}"
+
+    schema_pattern:
+      allow:
+        - "^raw$"
+        - "^analytics$"
+
+    # Emit column-level descriptions from dbt-generated docs if available
+    include_table_lineage: true
+    include_column_lineage: true
+    profiling:
+      enabled: false   # enable in production for row counts + null rates
+
+sink:
+  type: datahub-rest
+  config:
+    server: "${DATAHUB_GMS_URL:-http://localhost:8080}"
